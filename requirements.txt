@@ -1,5 +1,7 @@
-openai>=1.50.0
-opencv-python-headless>=4.9.0
+opencv-python-headless>=4.9.0,<4.12
 pandas>=2.0.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0
 huggingface_hub>=0.23.0
+transformers>=4.51.3,<5.0
+accelerate>=1.2.0
+qwen-vl-utils>=0.0.8
