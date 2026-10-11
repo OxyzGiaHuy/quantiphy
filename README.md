@@ -4,41 +4,33 @@ This repository starts with a local video-to-number VLM baseline for the QuantiP
 
 ## Contents
 
-- `run_local_baseline.py`: samples frames from each video, runs Qwen2.5-VL-3B locally, parses a numeric answer, and checkpoints predictions after every row.
-- `run_baseline.py`: optional API-based baseline; install `requirements-api.txt` and provide an API key only if you choose this route.
-- `score_validation.py`: computes the QuantiPhy Mean Relative Accuracy (MRA) metric, including the four-category macro average when category columns are present.
-- `kaggle_quickstart.ipynb`: Kaggle notebook template for cloning this repo and running a small validation batch.
+- `run_local_baseline.py`: local VLM baseline (Qwen2.5-VL or Qwen3-VL). For each question it samples frames around every time mentioned in the question or prior plus frames covering the whole clip, labels each frame with its timestamp, asks for `Answer: <number> <unit>`, and converts the answer to the unit the question requests. Resumable: predictions are checkpointed after every row.
+- `qp_utils.py`: model-free helpers (number/unit parsing and conversion, timestamp extraction, frame selection, prompts). Unit-tested in `tests/`.
+- `score_validation.py`: QuantiPhy MRA, per category (S2, D2, S3, D3), macro average, per video source, and seconds per row.
+- `kaggle_quickstart.ipynb`: runs several configurations on the validation split and prints a comparison table.
+- `run_baseline.py`: optional API baseline (not used for Track B).
 
 ## Run on Kaggle
 
-1. Create a Kaggle Notebook, turn **Internet** on, and select a GPU accelerator (T4 is sufficient for this 3B model).
-2. Run the cells in `kaggle_quickstart.ipynb`. It downloads the public validation dataset and public Qwen checkpoint from Hugging Face; no secret, API key, or manual data upload is needed.
-3. Start with `ROW_LIMIT = 5` to check the setup. Change it to `0` to process the full validation CSV. The model runs locally on Kaggle; this baseline performs inference only and does not train or fine-tune.
-
-The model download is several gigabytes, so keep Kaggle Internet enabled. CPU fallback is supported but will be very slow; use a GPU for practical runs.
+1. New Notebook, **Internet on**, accelerator **GPU T4 x2**.
+2. Import `kaggle_quickstart.ipynb` (it clones the `improve-baseline` branch) and run it with `LIMIT = 5` first to check memory and speed, then `LIMIT = 0`.
+3. Compare runs in the final table. Each run keeps `outputs/<name>.csv`, `outputs/<name>.json` and `outputs/<name>.config.json`.
 
 ## Run from a terminal
 
 ```bash
 python -m pip install -r requirements.txt
-python run_local_baseline.py \
-  --csv /path/to/quantiphy_validation.csv \
-  --video-dir /path/to/validation_videos \
-  --output outputs/validation_predictions.csv \
-  --model Qwen/Qwen2.5-VL-3B-Instruct \
-  --limit 5
-python score_validation.py \
-  --predictions outputs/validation_predictions.csv \
-  --output outputs/validation_score.json
+python run_local_baseline.py --csv validation_dataset.csv --video-dir validation_videos \
+  --output outputs/qwen3vl8b_direct.csv --model Qwen/Qwen3-VL-8B-Instruct --frames 12 --limit 5
+python score_validation.py --predictions outputs/qwen3vl8b_direct.csv --output outputs/qwen3vl8b_direct.json
+python -m pytest -q tests   # helper tests, CPU only
 ```
 
-Remove `--limit 5` (or use `--limit 0`) to process the full CSV. Predictions are saved incrementally, so rerunning the command skips rows that already have a numeric prediction. Rows with missing videos or inference errors are recorded and can be retried on the next run. To use the optional API baseline instead, install `requirements-api.txt`, then run `run_baseline.py` with the API key expected by that script.
+Useful flags: `--frames` (frame budget, default 12), `--time-window` (seconds around each mentioned time, default 0.1), `--max-side` (resize, default 640), `--prompt-style direct|measure`, `--load-4bit` (8B on a single T4).
 
 ## Input and output
 
-The metadata CSV must contain `question` and either `video_id` or `video_path`. With `video_id`, the script looks for `<video_id>.mp4` under `--video-dir`. It includes `prior` (or `ground_truth_prior`) and `depth_info` in the prompt when those columns are present. The validation set labels answers in the `answer` column. `--frames` controls how many evenly spaced video frames are sent to the model (default: 6).
-
-The output retains the input metadata and adds `_row_index`, `parsed_value`, `raw_response`, and `model`. Use the labeled validation split for local MRA scoring. The competition test labels are hidden and are scored only by the official submission portal.
+The metadata CSV needs `question` and `video_id` (or `video_path`); `ground_truth_prior`, `depth_info` and `fps` are used when present. Validation labels are in `ground_truth_posterior`. The output keeps the input columns and adds `_row_index`, `parsed_value` (converted to the requested unit), `answer_unit`, `raw_response`, `model`, `seconds`. Test labels are hidden; only the official portal scores the test split.
 
 ## Kaggle input paths
 
@@ -52,5 +44,13 @@ for path in Path('/kaggle/input').rglob('*'):
 ```
 
 ## Next agentic steps
+
+Planned measure-then-compute agent (tools do the measuring, the VLM only plans):
+
+1. Parse the question and prior into a plan: reference object and its quantity, target object and quantity, times, unit.
+2. Locate each object by VLM grounding on a frame, then track it with SAM 2 to get a pixel trajectory and pixel size.
+3. Get the scale (metres per pixel) from the prior: size, or velocity/acceleration fitted on the reference trajectory; rescale by depth ratio for 3D clips.
+4. Compute the target from its pixel measurement and the scale; fall back to the VLM answer when a step fails.
+
 
 Keep this baseline as the reference. Add one component at a time and compare its validation MRA: for example, a video-measurement agent, a deterministic unit/kinematics solver, or an independent answer-checking agent. Record each prediction CSV and score before changing the next component.

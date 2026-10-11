@@ -82,6 +82,11 @@ def main() -> None:
         if all(category in category_scores for category in CATEGORIES):
             result["mra_macro"] = float(np.mean([category_scores[c] for c in CATEGORIES]))
     result["mra_row_mean"] = float(predictions["_mra"].mean())
+    if "video_source" in predictions:
+        for source, values in predictions.groupby("video_source")["_mra"]:
+            result[f"mra_source_{source}"] = float(values.mean())
+    if "seconds" in predictions:
+        result["seconds_per_row"] = float(pd.to_numeric(predictions["seconds"], errors="coerce").mean())
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
