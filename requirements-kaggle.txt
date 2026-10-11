@@ -1,0 +1,3 @@
+# Only what the Kaggle image lacks or has too old. Do NOT add numpy/pandas/opencv/torch here.
+transformers>=4.57.0,<5.0
+bitsandbytes>=0.45.0

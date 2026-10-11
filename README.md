@@ -14,7 +14,8 @@ This repository starts with a local video-to-number VLM baseline for the QuantiP
 
 1. New Notebook, **Internet on**, accelerator **GPU T4 x2**.
 2. Import `kaggle_quickstart.ipynb` (it clones the `improve-baseline` branch) and run it with `LIMIT = 5` first to check memory and speed, then `LIMIT = 0`.
-3. Compare runs in the final table. Each run keeps `outputs/<name>.csv`, `outputs/<name>.json` and `outputs/<name>.config.json`.
+3. The install cell uses `requirements-kaggle.txt` (only transformers and bitsandbytes). Do not install `requirements.txt` on Kaggle: downgrading numpy breaks pandas/torch binaries and shows up as `numpy.dtype size changed` or `cannot import name 'AutoProcessor'`. If that happened, Factory-reset the session.
+4. Compare runs in the final table. Each run keeps `outputs/<name>.csv`, `outputs/<name>.json` and `outputs/<name>.config.json`.
 
 ## Run from a terminal
 

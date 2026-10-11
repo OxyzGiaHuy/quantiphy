@@ -27,8 +27,25 @@ from qp_utils import PRIOR_COLUMNS, first_nonempty
 MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 
 
+def import_transformers():
+    """transformers hides the real cause of a failed lazy import; surface it."""
+    try:
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+        return AutoModelForImageTextToText, AutoProcessor
+    except ImportError as exc:
+        import importlib
+        import transformers
+        print(f"transformers {transformers.__version__} import failed: {exc}", flush=True)
+        for mod in ("transformers.models.auto.processing_auto", "transformers.models.auto.modeling_auto"):
+            try:
+                importlib.import_module(mod)
+            except Exception as inner:  # the underlying error (e.g. numpy/torch binary mismatch)
+                print(f"  root cause in {mod}: {type(inner).__name__}: {inner}", flush=True)
+        raise SystemExit("Fix the environment (see README > Kaggle) and restart the session.") from exc
+
+
 def load_model(model_id: str, load_4bit: bool):
-    from transformers import AutoModelForImageTextToText, AutoProcessor
+    AutoModelForImageTextToText, AutoProcessor = import_transformers()
 
     kwargs: dict[str, Any] = {"device_map": "auto", "low_cpu_mem_usage": True}
     if load_4bit:
